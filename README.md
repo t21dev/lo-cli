@@ -1,6 +1,16 @@
 # LoCLI
 
-> Fine-tune LLMs locally with AI-optimized defaults
+```
+  ██╗      ██████╗  ██████╗██╗     ██╗
+  ██║     ██╔═══██╗██╔════╝██║     ██║
+  ██║     ██║   ██║██║     ██║     ██║
+  ██║     ██║   ██║██║     ██║     ██║
+  ███████╗╚██████╔╝╚██████╗███████╗██║
+  ╚══════╝ ╚═════╝  ╚═════╝╚══════╝╚═╝
+
+  Fine-tune LLMs locally with AI-optimized defaults
+  by t21.dev
+```
 
 LoCLI makes fine-tuning LLMs accessible to developers. Just point it at your dataset and go.
 
@@ -9,7 +19,7 @@ LoCLI makes fine-tuning LLMs accessible to developers. Just point it at your dat
 - **Multiple Model Families** - Llama, Mistral, Qwen, Phi from HuggingFace
 - **LoRA & QLoRA** - Fine-tune on consumer GPUs (6GB+ VRAM)
 - **AI-Optimized Defaults** - Analyzes your dataset and suggests hyperparameters
-- **Interactive Mode** - Guided setup for beginners
+- **Interactive CLI** - Guided step-by-step setup
 - **Export Options** - LoRA adapters, merged models, GGUF for Ollama
 
 ## Installation
@@ -42,8 +52,6 @@ pip install llama-cpp-python
 
 ## Configuration
 
-### Environment Variables
-
 Copy `.env.example` to `.env` and configure:
 
 ```bash
@@ -59,32 +67,36 @@ HF_TOKEN=hf_your_token_here
 OPENAI_API_KEY=sk-your_key_here
 ```
 
-### Config File (Optional)
-
-Create `locli.yaml` for custom defaults:
-
-```yaml
-lora:
-  r: 16
-  lora_alpha: 32
-
-training:
-  learning_rate: 2e-4
-  num_epochs: 3
-  batch_size: 4
-```
-
 ## Quick Start
 
 ```bash
-# Interactive mode (recommended for first time)
-locli train --interactive
+# Start the training wizard
+locli train
+```
 
-# Or specify everything
-locli train \
-  --dataset data.jsonl \
-  --base-model meta-llama/Llama-3.2-8B-Instruct \
-  --method qlora
+The interactive wizard guides you through:
+
+```
+Step 1: Dataset        → Enter path, validate, show stats
+Step 2: Model          → Choose HuggingFace model
+Step 3: Method         → LoRA or QLoRA (auto-recommended)
+Step 4: Parameters     → AI-suggested or custom
+Step 5: Output         → Choose output directory
+Summary               → Review and start training
+```
+
+## Commands
+
+All commands are interactive and will prompt for required inputs:
+
+```bash
+locli train           # Training wizard
+locli analyze         # Analyze dataset & get suggestions
+locli export          # Export model (LoRA/merged/GGUF)
+locli models list     # List supported model families
+locli models search   # Search HuggingFace models
+locli models info     # Show model details & VRAM requirements
+locli info            # Check GPU, VRAM, CUDA status
 ```
 
 ## Hardware Requirements
@@ -94,31 +106,6 @@ locli train \
 | 7B | QLoRA | 6GB |
 | 7B | LoRA | 14GB |
 | 13B | QLoRA | 10GB |
-
-## Commands
-
-```bash
-# Training
-locli train -i                    # Interactive training wizard
-locli train -d data.jsonl -m meta-llama/Llama-3.2-8B-Instruct
-
-# Model browsing
-locli models list                 # List supported model families
-locli models search "llama 8b"    # Search HuggingFace models
-locli models info <model-id>      # Show model details + VRAM requirements
-
-# Dataset analysis
-locli analyze data.jsonl          # Analyze dataset statistics
-locli analyze data.jsonl --suggest  # Get AI-powered training suggestions
-
-# Export
-locli export ./output/final --format lora    # Export LoRA adapters
-locli export ./output/final --format merged  # Merge with base model
-locli export ./output/final --format gguf    # Convert to GGUF
-
-# System info
-locli info                        # Check GPU, VRAM, CUDA status
-```
 
 ## Dataset Format
 
@@ -141,20 +128,20 @@ LoCLI supports JSONL files with these formats:
 
 A sample dataset is included: `sample.jsonl`
 
-## Training Flags
+## Config File (Optional)
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--dataset, -d` | Path to JSONL dataset | Required |
-| `--base-model, -m` | HuggingFace model ID | Required |
-| `--method` | `lora` or `qlora` | `qlora` |
-| `--output, -o` | Output directory | `./output` |
-| `--epochs` | Number of epochs | `3` |
-| `--batch-size` | Batch size | `4` |
-| `--lr` | Learning rate | `2e-4` |
-| `--r` | LoRA rank | `16` |
-| `--resume` | Resume from checkpoint | - |
-| `--interactive, -i` | Interactive mode | `false` |
+Create `locli.yaml` for custom defaults:
+
+```yaml
+lora:
+  r: 16
+  lora_alpha: 32
+
+training:
+  learning_rate: 2e-4
+  num_epochs: 3
+  batch_size: 4
+```
 
 ## Requirements
 
@@ -181,4 +168,4 @@ MIT License - see [LICENSE](LICENSE)
 
 ## Author
 
-Created by [@TriptoAfsin](https://github.com/TriptoAfsin) | [t21dev](https://github.com/t21dev)
+Created by [@TriptoAfsin](https://github.com/TriptoAfsin) | [t21.dev](https://github.com/t21dev)

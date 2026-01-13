@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 from rich.console import Console
@@ -34,7 +34,7 @@ from locli.models import (
     search_models,
     validate_model_id,
 )
-from locli.trainer import display_training_result, get_available_checkpoints, train
+from locli.trainer import display_training_result, train
 from locli.utils import (
     check_cuda_available,
     display_system_info,
@@ -46,10 +46,28 @@ from locli.utils import (
     print_success,
     print_warning,
     validate_dataset_path,
-    validate_output_dir,
 )
 
 console = Console()
+
+LOGO = """
+[bold cyan]
+  ██╗      ██████╗  ██████╗██╗     ██╗
+  ██║     ██╔═══██╗██╔════╝██║     ██║
+  ██║     ██║   ██║██║     ██║     ██║
+  ██║     ██║   ██║██║     ██║     ██║
+  ███████╗╚██████╔╝╚██████╗███████╗██║
+  ╚══════╝ ╚═════╝  ╚═════╝╚══════╝╚═╝
+[/bold cyan]
+[dim]  Fine-tune LLMs locally with AI-optimized defaults[/dim]
+[dim italic]  by t21.dev[/dim italic]
+"""
+
+
+def show_logo() -> None:
+    """Display the LoCLI logo."""
+    console.print(LOGO)
+
 
 # Create the main app
 app = typer.Typer(
@@ -91,8 +109,8 @@ def main(
 @app.command()
 def info() -> None:
     """Show system information (GPU, VRAM, CUDA)."""
-    console.print()
-    console.print(Panel.fit("[bold]LoCLI System Information[/bold]", border_style="blue"))
+    show_logo()
+    console.print(Panel.fit("[bold]System Information[/bold]", border_style="blue"))
     console.print()
 
     system_info = get_system_info()
@@ -104,69 +122,11 @@ def info() -> None:
         print_info("Make sure you have an NVIDIA GPU with CUDA installed.")
 
 
-@app.command()
-def train_cmd(
-    dataset: Annotated[
-        Path,
-        typer.Option(
-            "--dataset",
-            "-d",
-            help="Path to JSONL dataset",
-            exists=True,
-            dir_okay=False,
-        ),
-    ] = None,
-    base_model: Annotated[
-        str,
-        typer.Option(
-            "--base-model",
-            "-m",
-            help="HuggingFace model ID (e.g., meta-llama/Llama-3.2-8B-Instruct)",
-        ),
-    ] = None,
-    method: Annotated[
-        str,
-        typer.Option(
-            "--method",
-            help="Training method: lora or qlora",
-        ),
-    ] = "qlora",
-    output: Annotated[
-        Path,
-        typer.Option(
-            "--output",
-            "-o",
-            help="Output directory for trained model",
-        ),
-    ] = Path("./output"),
-    epochs: Annotated[
-        int,
-        typer.Option("--epochs", help="Number of training epochs"),
-    ] = None,
-    batch_size: Annotated[
-        int,
-        typer.Option("--batch-size", help="Batch size per device"),
-    ] = None,
-    lr: Annotated[
-        float,
-        typer.Option("--lr", help="Learning rate"),
-    ] = None,
-    r: Annotated[
-        int,
-        typer.Option("--r", help="LoRA rank"),
-    ] = None,
-    resume: Annotated[
-        Path,
-        typer.Option("--resume", help="Resume from checkpoint"),
-    ] = None,
-    interactive: Annotated[
-        bool,
-        typer.Option("--interactive", "-i", help="Interactive mode"),
-    ] = False,
-) -> None:
-    """Start fine-tuning a model."""
-    console.print()
-    console.print(Panel.fit("[bold]LoCLI Training[/bold]", border_style="blue"))
+@app.command(name="train")
+def train_cmd() -> None:
+    """Start fine-tuning with interactive setup."""
+    show_logo()
+    console.print(Panel.fit("[bold]Training Wizard[/bold]", border_style="blue"))
     console.print()
 
     # Check CUDA availability
@@ -175,79 +135,141 @@ def train_cmd(
         if not Confirm.ask("Continue anyway?", default=False):
             raise typer.Exit(1)
 
-    # Interactive mode
-    if interactive or (dataset is None and base_model is None):
-        dataset, base_model, method, output = interactive_training_setup()
+    # Step 1: Get dataset path
+    console.print("[bold]Step 1: Dataset[/bold]")
+    console.print()
 
-    # Validate inputs
-    if dataset is None:
-        print_error("Dataset path is required. Use --dataset or -d")
-        raise typer.Exit(1)
+    while True:
+        dataset_str = Prompt.ask("Dataset path (JSONL file)")
+        dataset_path = Path(dataset_str)
 
-    if base_model is None:
-        print_error("Base model is required. Use --base-model or -m")
-        raise typer.Exit(1)
+        if not dataset_path.exists():
+            print_error(f"File not found: {dataset_path}")
+            continue
 
-    # Validate dataset
-    try:
-        dataset_path = validate_dataset_path(dataset)
-    except (FileNotFoundError, ValueError) as e:
-        print_error(str(e))
-        raise typer.Exit(1)
+        # Validate format
+        valid, msg = validate_jsonl(dataset_path)
+        if not valid:
+            print_error(f"Invalid dataset: {msg}")
+            continue
 
-    # Validate method
-    if method not in ["lora", "qlora"]:
-        print_error(f"Invalid method: {method}. Use 'lora' or 'qlora'")
-        raise typer.Exit(1)
+        print_success(msg)
+        break
 
-    # Check VRAM and recommend method
+    # Analyze dataset
+    console.print()
+    stats = analyze_dataset(dataset_path)
+    display_stats(stats)
+
+    # Step 2: Model selection
+    console.print()
+    console.print("[bold]Step 2: Model Selection[/bold]")
+    console.print("Supported families: Llama, Mistral, Qwen, Phi")
+    console.print()
+
+    while True:
+        base_model = Prompt.ask(
+            "Base model (HuggingFace ID)",
+            default="meta-llama/Llama-3.2-8B-Instruct",
+        )
+
+        console.print("Validating model...")
+        if validate_model_id(base_model):
+            print_success(f"Model found: {base_model}")
+            break
+        else:
+            print_warning(f"Could not validate model: {base_model}")
+            if Confirm.ask("Use anyway?", default=False):
+                break
+
+    # Show model info
+    model_info = get_model_info(base_model)
+    if model_info:
+        display_model_info(model_info)
+
+    # Step 3: Training method
+    console.print()
+    console.print("[bold]Step 3: Training Method[/bold]")
+    console.print()
+
     available_vram = get_total_vram()
+    recommended_method = "qlora"
+
     if available_vram > 0:
         recommended = recommend_method(base_model, available_vram)
-        if recommended is None:
-            print_warning(
-                f"Model may be too large for available VRAM ({available_vram:.0f} GB). "
-                "Consider using a smaller model or QLoRA."
-            )
-        elif recommended != method:
-            print_info(
-                f"Based on available VRAM ({available_vram:.0f} GB), "
-                f"'{recommended}' is recommended over '{method}'."
-            )
+        if recommended:
+            recommended_method = recommended
+            print_info(f"Based on your VRAM ({available_vram:.0f}GB), recommended: {recommended}")
+        else:
+            print_warning("Model may be too large for your VRAM. Using QLoRA.")
 
-    # Validate output directory
-    try:
-        output_dir = validate_output_dir(output)
-    except ValueError as e:
-        print_error(str(e))
-        raise typer.Exit(1)
+    method = Prompt.ask(
+        "Training method",
+        choices=["lora", "qlora"],
+        default=recommended_method,
+    )
 
-    # Load config and apply overrides
-    config = load_config()
-
-    if epochs is not None:
-        config.training.num_epochs = epochs
-    if batch_size is not None:
-        config.training.batch_size = batch_size
-    if lr is not None:
-        config.training.learning_rate = lr
-    if r is not None:
-        config.lora.r = r
-
-    # Display configuration
+    # Step 4: Training parameters
     console.print()
-    print_info(f"Dataset: {dataset_path}")
-    print_info(f"Base model: {base_model}")
-    print_info(f"Method: {method}")
-    print_info(f"Output: {output_dir}")
-    print_info(f"Epochs: {config.training.num_epochs}")
-    print_info(f"Batch size: {config.training.batch_size}")
-    print_info(f"Learning rate: {config.training.learning_rate}")
-    print_info(f"LoRA rank: {config.lora.r}")
+    console.print("[bold]Step 4: Training Parameters[/bold]")
+    console.print()
+
+    # Get AI/static suggestions
+    vram_for_suggestions = get_available_vram() or 8
+    suggestions = get_suggestions(stats, vram_for_suggestions, use_ai=True)
+    is_ai = "AI" in suggestions.reasoning if suggestions.reasoning else False
+    display_suggestions(suggestions, is_ai)
+
+    console.print()
+    if Confirm.ask("Use suggested parameters?", default=True):
+        epochs = suggestions.num_epochs
+        batch_size = suggestions.batch_size
+        learning_rate = suggestions.learning_rate
+        lora_rank = suggestions.r
+        max_seq_length = suggestions.max_seq_length
+    else:
+        epochs = int(Prompt.ask("Number of epochs", default=str(suggestions.num_epochs)))
+        batch_size = int(Prompt.ask("Batch size", default=str(suggestions.batch_size)))
+        learning_rate = float(Prompt.ask("Learning rate", default=str(suggestions.learning_rate)))
+        lora_rank = int(Prompt.ask("LoRA rank", default=str(suggestions.r)))
+        max_seq_length = int(Prompt.ask("Max sequence length", default=str(suggestions.max_seq_length)))
+
+    # Step 5: Output directory
+    console.print()
+    console.print("[bold]Step 5: Output[/bold]")
+    console.print()
+
+    output_str = Prompt.ask("Output directory", default="./output")
+    output_dir = Path(output_str)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Summary and confirmation
+    console.print()
+    console.print(Panel("[bold]Training Configuration[/bold]", border_style="green"))
+    console.print()
+    console.print(f"  Dataset:        {dataset_path}")
+    console.print(f"  Samples:        {stats.total_samples}")
+    console.print(f"  Base model:     {base_model}")
+    console.print(f"  Method:         {method}")
+    console.print(f"  Epochs:         {epochs}")
+    console.print(f"  Batch size:     {batch_size}")
+    console.print(f"  Learning rate:  {learning_rate}")
+    console.print(f"  LoRA rank:      {lora_rank}")
+    console.print(f"  Max seq length: {max_seq_length}")
+    console.print(f"  Output:         {output_dir}")
     console.print()
 
     if not Confirm.ask("Start training?", default=True):
+        console.print("Training cancelled.")
         raise typer.Exit(0)
+
+    # Load config and apply settings
+    config = load_config()
+    config.training.num_epochs = epochs
+    config.training.batch_size = batch_size
+    config.training.learning_rate = learning_rate
+    config.training.max_seq_length = max_seq_length
+    config.lora.r = lora_rank
 
     # Run training
     try:
@@ -257,88 +279,21 @@ def train_cmd(
             output_dir=output_dir,
             method=method,
             config=config,
-            resume_from=resume,
         )
         console.print()
         display_training_result(result)
 
+        # Ask about export
+        console.print()
+        if Confirm.ask("Export model to another format?", default=False):
+            export_interactive(result.output_dir / "final")
+
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Training interrupted by user.[/yellow]")
+        raise typer.Exit(1)
     except Exception as e:
         print_error(f"Training failed: {e}")
         raise typer.Exit(1)
-
-
-def interactive_training_setup() -> tuple[Path, str, str, Path]:
-    """Run interactive training setup wizard."""
-    console.print("[bold]Interactive Training Setup[/bold]")
-    console.print()
-
-    # Get dataset path
-    dataset_str = Prompt.ask("Dataset path (JSONL file)")
-    dataset_path = Path(dataset_str)
-
-    if not dataset_path.exists():
-        print_error(f"Dataset not found: {dataset_path}")
-        raise typer.Exit(1)
-
-    # Validate and analyze dataset
-    valid, msg = validate_jsonl(dataset_path)
-    if not valid:
-        print_error(f"Invalid dataset: {msg}")
-        raise typer.Exit(1)
-
-    print_success(msg)
-
-    # Analyze dataset
-    console.print()
-    stats = analyze_dataset(dataset_path)
-    display_stats(stats)
-
-    # Get model
-    console.print()
-    console.print("[bold]Model Selection[/bold]")
-    console.print("Supported families: Llama, Mistral, Qwen, Phi")
-    console.print()
-
-    base_model = Prompt.ask(
-        "Base model (HuggingFace ID)",
-        default="meta-llama/Llama-3.2-8B-Instruct",
-    )
-
-    # Validate model exists
-    console.print("Validating model...")
-    if not validate_model_id(base_model):
-        print_warning(f"Could not validate model: {base_model}")
-        if not Confirm.ask("Continue anyway?", default=False):
-            raise typer.Exit(1)
-
-    # Recommend method based on VRAM
-    available_vram = get_total_vram()
-    if available_vram > 0:
-        recommended = recommend_method(base_model, available_vram)
-        if recommended:
-            method = recommended
-            print_info(f"Recommended method for {available_vram:.0f}GB VRAM: {method}")
-        else:
-            method = "qlora"
-            print_warning("Model may be too large. Using QLoRA.")
-    else:
-        method = "qlora"
-
-    method = Prompt.ask("Training method", choices=["lora", "qlora"], default=method)
-
-    # Get suggestions
-    console.print()
-    available_vram = get_available_vram() or 8  # Default to 8GB if unknown
-    suggestions = get_suggestions(stats, available_vram)
-    is_ai = hasattr(suggestions, "reasoning") and "AI" in suggestions.reasoning
-    display_suggestions(suggestions, is_ai)
-
-    # Output directory
-    console.print()
-    output_str = Prompt.ask("Output directory", default="./output")
-    output_path = Path(output_str)
-
-    return dataset_path, base_model, method, output_path
 
 
 @app.command()
@@ -346,16 +301,17 @@ def analyze(
     dataset: Annotated[
         Path,
         typer.Argument(help="Path to JSONL dataset"),
-    ],
-    suggest: Annotated[
-        bool,
-        typer.Option("--suggest", "-s", help="Get training parameter suggestions"),
-    ] = False,
+    ] = None,
 ) -> None:
-    """Analyze a dataset and optionally get training suggestions."""
-    console.print()
+    """Analyze a dataset and get training suggestions."""
+    show_logo()
     console.print(Panel.fit("[bold]Dataset Analysis[/bold]", border_style="blue"))
     console.print()
+
+    # Get dataset path interactively if not provided
+    if dataset is None:
+        dataset_str = Prompt.ask("Dataset path (JSONL file)")
+        dataset = Path(dataset_str)
 
     # Validate dataset
     try:
@@ -381,12 +337,13 @@ def analyze(
         print_error(f"Analysis failed: {e}")
         raise typer.Exit(1)
 
-    # Get suggestions if requested
-    if suggest:
-        console.print()
+    # Get suggestions
+    console.print()
+    if Confirm.ask("Get training parameter suggestions?", default=True):
         available_vram = get_available_vram() or 8
         suggestions = get_suggestions(stats, available_vram, use_ai=True)
         is_ai = "AI" in suggestions.reasoning if suggestions.reasoning else False
+        console.print()
         display_suggestions(suggestions, is_ai)
 
 
@@ -395,75 +352,78 @@ def export(
     model_path: Annotated[
         Path,
         typer.Argument(help="Path to trained model directory"),
-    ],
-    format: Annotated[
-        str,
-        typer.Option("--format", "-f", help="Export format: lora, merged, or gguf"),
-    ] = "lora",
-    output: Annotated[
-        Path,
-        typer.Option("--output", "-o", help="Output path"),
     ] = None,
-    quantization: Annotated[
-        str,
-        typer.Option("--quantization", "-q", help="GGUF quantization type"),
-    ] = "q4_k_m",
-    base_model: Annotated[
-        str,
-        typer.Option("--base-model", help="Base model ID (for gguf export)"),
-    ] = None,
-    list_quantizations: Annotated[
-        bool,
-        typer.Option("--list-quantizations", help="List available GGUF quantizations"),
-    ] = False,
 ) -> None:
     """Export trained model to different formats."""
-    if list_quantizations:
-        display_gguf_quantizations()
-        raise typer.Exit(0)
-
-    console.print()
+    show_logo()
     console.print(Panel.fit("[bold]Model Export[/bold]", border_style="blue"))
     console.print()
 
-    # Validate model path
+    # Get model path interactively if not provided
+    if model_path is None:
+        model_str = Prompt.ask("Trained model path")
+        model_path = Path(model_str)
+
     if not model_path.exists():
         print_error(f"Model path not found: {model_path}")
         raise typer.Exit(1)
 
-    # Validate format
-    if format not in ["lora", "merged", "gguf"]:
-        print_error(f"Invalid format: {format}. Use 'lora', 'merged', or 'gguf'")
-        raise typer.Exit(1)
+    export_interactive(model_path)
 
-    # Validate quantization for GGUF
-    if format == "gguf" and quantization not in GGUF_QUANTIZATIONS:
-        print_error(f"Invalid quantization: {quantization}")
-        display_gguf_quantizations()
-        raise typer.Exit(1)
 
-    # Set default output path
-    if output is None:
-        if format == "gguf":
-            output = model_path.parent / f"{model_path.stem}.gguf"
-        else:
-            output = model_path.parent / f"{model_path.stem}-{format}"
-
-    print_info(f"Model: {model_path}")
-    print_info(f"Format: {format}")
-    print_info(f"Output: {output}")
-    if format == "gguf":
-        print_info(f"Quantization: {quantization}")
+def export_interactive(model_path: Path) -> None:
+    """Interactive export flow."""
+    console.print(f"Model: {model_path}")
     console.print()
 
-    # Export
+    # Choose format
+    console.print("Export formats:")
+    console.print("  lora   - LoRA adapters only (~50-200MB)")
+    console.print("  merged - Full merged model (large)")
+    console.print("  gguf   - GGUF for llama.cpp/Ollama")
+    console.print()
+
+    format_choice = Prompt.ask(
+        "Export format",
+        choices=["lora", "merged", "gguf"],
+        default="lora",
+    )
+
+    # Get output path
+    if format_choice == "gguf":
+        default_output = model_path.parent / f"{model_path.stem}.gguf"
+    else:
+        default_output = model_path.parent / f"{model_path.stem}-{format_choice}"
+
+    output_str = Prompt.ask("Output path", default=str(default_output))
+    output_path = Path(output_str)
+
+    # GGUF quantization
+    quantization = None
+    if format_choice == "gguf":
+        console.print()
+        display_gguf_quantizations()
+        console.print()
+        quantization = Prompt.ask(
+            "Quantization type",
+            default="q4_k_m",
+        )
+        if quantization not in GGUF_QUANTIZATIONS:
+            print_error(f"Invalid quantization: {quantization}")
+            raise typer.Exit(1)
+
+    # Confirm and export
+    console.print()
+    if not Confirm.ask("Start export?", default=True):
+        console.print("Export cancelled.")
+        return
+
     try:
         result = export_model(
             model_path=model_path,
-            output_path=output,
-            format=format,
-            quantization=quantization if format == "gguf" else None,
-            base_model=base_model,
+            output_path=output_path,
+            format=format_choice,
+            quantization=quantization,
         )
         console.print()
         display_export_result(result)
@@ -477,7 +437,7 @@ def export(
 @models_app.command("list")
 def models_list() -> None:
     """List supported model families."""
-    console.print()
+    show_logo()
     display_model_families()
 
 
@@ -486,21 +446,24 @@ def models_search(
     query: Annotated[
         str,
         typer.Argument(help="Search query"),
-    ] = "",
-    family: Annotated[
-        str,
-        typer.Option("--family", "-f", help="Filter by family (llama, mistral, qwen, phi)"),
     ] = None,
-    all_models: Annotated[
-        bool,
-        typer.Option("--all", "-a", help="Include base models (not just instruct)"),
-    ] = False,
-    limit: Annotated[
-        int,
-        typer.Option("--limit", "-n", help="Maximum results"),
-    ] = 20,
 ) -> None:
     """Search HuggingFace models."""
+    show_logo()
+
+    # Get query interactively if not provided
+    if query is None:
+        query = Prompt.ask("Search query (or press Enter for all)", default="")
+
+    family = None
+    if Confirm.ask("Filter by model family?", default=False):
+        family = Prompt.ask(
+            "Family",
+            choices=["llama", "mistral", "qwen", "phi"],
+        )
+
+    include_base = Confirm.ask("Include base models (not just instruct)?", default=False)
+
     console.print()
     console.print(f"[bold]Searching for: {query or 'all models'}[/bold]")
     console.print()
@@ -508,8 +471,8 @@ def models_search(
     models = search_models(
         query=query,
         family=family,
-        instruct_only=not all_models,
-        limit=limit,
+        instruct_only=not include_base,
+        limit=20,
     )
 
     display_model_list(models)
@@ -520,9 +483,15 @@ def models_info(
     model_id: Annotated[
         str,
         typer.Argument(help="HuggingFace model ID"),
-    ],
+    ] = None,
 ) -> None:
     """Show detailed model information."""
+    show_logo()
+
+    # Get model ID interactively if not provided
+    if model_id is None:
+        model_id = Prompt.ask("Model ID (e.g., meta-llama/Llama-3.2-8B-Instruct)")
+
     model = get_model_info(model_id)
 
     if model is None:
@@ -540,10 +509,6 @@ def models_info(
             print_info(f"Recommended training method: {recommended} (for {available_vram:.0f}GB VRAM)")
         else:
             print_warning("Model may be too large for available VRAM")
-
-
-# Register the train command with the right name
-app.command(name="train")(train_cmd)
 
 
 if __name__ == "__main__":
