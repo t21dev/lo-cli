@@ -35,9 +35,6 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
-
-# Install the package locally
-pip install -e .
 ```
 
 ### Optional Dependencies
@@ -71,7 +68,7 @@ OPENAI_API_KEY=sk-your_key_here
 
 ```bash
 # Start the training wizard
-locli train
+python app.py train
 ```
 
 The interactive wizard guides you through:
@@ -90,13 +87,13 @@ Summary               → Review and start training
 All commands are interactive and will prompt for required inputs:
 
 ```bash
-locli train           # Training wizard
-locli analyze         # Analyze dataset & get suggestions
-locli export          # Export model (LoRA/merged/GGUF)
-locli models list     # List supported model families
-locli models search   # Search HuggingFace models
-locli models info     # Show model details & VRAM requirements
-locli info            # Check GPU, VRAM, CUDA status
+python app.py train           # Training wizard
+python app.py analyze         # Analyze dataset & get suggestions
+python app.py export          # Export model (LoRA/merged/GGUF)
+python app.py models list     # List supported model families
+python app.py models search   # Search HuggingFace models
+python app.py models info     # Show model details & VRAM requirements
+python app.py info            # Check GPU, VRAM, CUDA status
 ```
 
 ## Hardware Requirements
@@ -152,13 +149,12 @@ training:
 ## Development
 
 ```bash
-# Install dev dependencies
-pip install pytest pytest-cov ruff
-
 # Run tests
+pip install pytest
 pytest tests/ -v
 
 # Run linting
+pip install ruff
 ruff check src tests
 ```
 

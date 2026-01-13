@@ -170,7 +170,7 @@ def train_cmd() -> None:
     while True:
         base_model = Prompt.ask(
             "Base model (HuggingFace ID)",
-            default="meta-llama/Llama-3.2-8B-Instruct",
+            default="meta-llama/Llama-3.1-8B-Instruct",
         )
 
         console.print("Validating model...")
@@ -214,9 +214,12 @@ def train_cmd() -> None:
     console.print("[bold]Step 4: Training Parameters[/bold]")
     console.print()
 
-    # Get AI/static suggestions
+    # Get AI/static suggestions with loading indicator
     vram_for_suggestions = get_available_vram() or 8
-    suggestions = get_suggestions(stats, vram_for_suggestions, use_ai=True)
+
+    with console.status("[bold cyan]Analyzing dataset and generating optimal parameters...[/bold cyan]", spinner="dots"):
+        suggestions = get_suggestions(stats, vram_for_suggestions, use_ai=True)
+
     is_ai = "AI" in suggestions.reasoning if suggestions.reasoning else False
     display_suggestions(suggestions, is_ai)
 
@@ -490,7 +493,7 @@ def models_info(
 
     # Get model ID interactively if not provided
     if model_id is None:
-        model_id = Prompt.ask("Model ID (e.g., meta-llama/Llama-3.2-8B-Instruct)")
+        model_id = Prompt.ask("Model ID (e.g., meta-llama/Llama-3.1-8B-Instruct)")
 
     model = get_model_info(model_id)
 
