@@ -1,0 +1,25 @@
+# Core ML dependencies
+torch>=2.2
+transformers>=4.40
+peft>=0.10
+trl>=0.8
+bitsandbytes>=0.43
+datasets>=2.18
+accelerate>=0.28
+
+# CLI & Utilities
+typer>=0.9
+rich>=13.0
+pydantic>=2.0
+pydantic-settings>=2.0
+pyyaml>=6.0
+python-dotenv>=1.0
+huggingface-hub>=0.21
+psutil>=5.9
+numpy>=1.24
+
+# Optional: AI suggestions (uncomment to enable)
+# openai>=1.0
+
+# Optional: GGUF export (uncomment to enable)
+# llama-cpp-python>=0.2

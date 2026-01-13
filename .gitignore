@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Environment
+.env
+.env.local
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Linting
+.mypy_cache/
+.ruff_cache/
+
+# Project specific - Training artifacts
+checkpoints/
+output/
+models/
+*.gguf
+*.safetensors
+*.bin
+wandb/
+
+# Datasets (don't commit training data)
+*.jsonl
+data/
+!sample.jsonl
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
