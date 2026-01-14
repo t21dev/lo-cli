@@ -163,7 +163,13 @@ pip uninstall torch torchvision torchaudio -y
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
 ```
 
-For RTX 40/50 series GPUs, use CUDA 12.4. For older GPUs, use `cu118` or `cu121`.
+For RTX 40 series, use CUDA 12.4 (`cu124`). For older GPUs, use `cu118` or `cu121`.
+
+**RTX 50 Series (5070, 5080, 5090):** These GPUs require PyTorch nightly build:
+```bash
+pip uninstall torch torchvision torchaudio -y
+pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu124
+```
 
 ### HuggingFace Authentication (for Llama, Mistral, etc.)
 

@@ -346,20 +346,16 @@ def train(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     print_info(f"Loading model: {base_model}")
+    print_info("This may take a few minutes...")
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[bold blue]{task.description}"),
-        console=console,
-    ) as progress:
-        task = progress.add_task("Loading model and tokenizer...", total=None)
-
-        # Load model and tokenizer
+    try:
         model, tokenizer = load_model_and_tokenizer(
             base_model, method, config.hardware
         )
-
-        progress.update(task, description="Model loaded!")
+        print_success("Model loaded!")
+    except Exception as e:
+        print_error(f"Failed to load model: {e}")
+        raise
 
     # Create LoRA config and apply PEFT
     lora_config = create_lora_config(config.lora)
