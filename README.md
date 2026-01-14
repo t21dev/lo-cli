@@ -225,6 +225,20 @@ pip install ruff
 ruff check src tests
 ```
 
+## Related Tools
+
+### [DocSet Gen](https://github.com/t21dev/docset-gen)
+Transform documentation into LLM training datasets. Use DocSet Gen to generate JSONL training data from your docs, then fine-tune with LoCLI.
+
+```bash
+# Generate dataset from docs
+docset-gen ./docs --output training_data.jsonl
+
+# Fine-tune with LoCLI
+python app.py train
+# → Enter training_data.jsonl when prompted
+```
+
 ## License
 
 MIT License - see [LICENSE](LICENSE)

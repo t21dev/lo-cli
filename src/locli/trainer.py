@@ -201,6 +201,15 @@ def load_model_and_tokenizer(
     else:
         torch_dtype = torch.float32
 
+    # Check if Flash Attention 2 is available
+    attn_implementation = None
+    if torch.cuda.is_available():
+        try:
+            import flash_attn  # noqa: F401
+            attn_implementation = "flash_attention_2"
+        except ImportError:
+            pass  # Flash Attention not installed, use default
+
     # Load model
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
@@ -209,7 +218,7 @@ def load_model_and_tokenizer(
         device_map="auto",
         trust_remote_code=True,
         token=token,
-        attn_implementation="flash_attention_2" if torch.cuda.is_available() else None,
+        attn_implementation=attn_implementation,
     )
 
     # Enable gradient checkpointing
