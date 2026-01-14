@@ -73,7 +73,7 @@ class OpenAIConfig(BaseModel):
     """OpenAI API configuration."""
 
     api_key: str | None = Field(default=None, description="OpenAI API key")
-    model: str = Field(default="gpt-4o-mini", description="Model to use for suggestions")
+    model: str = Field(default="gpt-4.1-mini", description="Model to use for suggestions")
 
 
 class HuggingFaceConfig(BaseModel):
@@ -104,6 +104,7 @@ class EnvSettings(BaseSettings):
     )
 
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
+    openai_model: str | None = Field(default=None, alias="OPENAI_MODEL")
     hf_token: str | None = Field(default=None, alias="HF_TOKEN")
     cuda_visible_devices: str | None = Field(default=None, alias="CUDA_VISIBLE_DEVICES")
     default_method: Literal["lora", "qlora"] = Field(default="qlora", alias="DEFAULT_METHOD")
@@ -161,6 +162,9 @@ def load_config(config_path: Path | None = None) -> LoCLIConfig:
     # Override with environment variables
     if env_settings.openai_api_key:
         config.openai.api_key = env_settings.openai_api_key
+
+    if env_settings.openai_model:
+        config.openai.model = env_settings.openai_model
 
     if env_settings.hf_token:
         config.huggingface.token = env_settings.hf_token

@@ -38,9 +38,12 @@ from locli.trainer import display_training_result, train
 from locli.utils import (
     check_cuda_available,
     display_system_info,
+    fix_pytorch_cuda,
     get_available_vram,
+    get_hf_token,
     get_system_info,
     get_total_vram,
+    has_nvidia_gpu,
     print_error,
     print_info,
     print_success,
@@ -131,9 +134,17 @@ def train_cmd() -> None:
 
     # Check CUDA availability
     if not check_cuda_available():
-        print_warning("CUDA is not available. Training will be very slow on CPU.")
-        if not Confirm.ask("Continue anyway?", default=False):
-            raise typer.Exit(1)
+        if has_nvidia_gpu():
+            # GPU exists but PyTorch doesn't have CUDA - offer to fix
+            if fix_pytorch_cuda():
+                raise typer.Exit(0)  # User needs to restart
+            # User declined fix, ask if they want to continue on CPU
+            if not Confirm.ask("Continue with CPU training? (very slow)", default=False):
+                raise typer.Exit(1)
+        else:
+            print_warning("No NVIDIA GPU detected. Training will be very slow on CPU.")
+            if not Confirm.ask("Continue anyway?", default=False):
+                raise typer.Exit(1)
 
     # Step 1: Get dataset path
     console.print("[bold]Step 1: Dataset[/bold]")
@@ -186,6 +197,21 @@ def train_cmd() -> None:
     model_info = get_model_info(base_model)
     if model_info:
         display_model_info(model_info)
+
+    # Check HF token for gated models (Llama, etc.)
+    if "llama" in base_model.lower() or "mistral" in base_model.lower():
+        hf_token = get_hf_token()
+        if not hf_token:
+            console.print()
+            print_warning("This model requires HuggingFace authentication.")
+            print_info("1. Go to https://huggingface.co/settings/tokens and create a token")
+            print_info("2. Request access to the model at https://huggingface.co/" + base_model)
+            print_info("3. Add HF_TOKEN=your_token to your .env file")
+            console.print()
+            if not Confirm.ask("Do you have access and HF_TOKEN configured?", default=False):
+                raise typer.Exit(1)
+        else:
+            print_success("HuggingFace token found")
 
     # Step 3: Training method
     console.print()

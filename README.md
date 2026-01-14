@@ -47,6 +47,8 @@ pip install openai
 pip install llama-cpp-python
 ```
 
+> **Note:** The default OpenAI model is `gpt-4.1-mini`. Make sure you have access to this model enabled in your [OpenAI developer account](https://platform.openai.com/settings/organization/limits). You can change the model in `.env` by setting `OPENAI_MODEL=gpt-4o` or another supported model.
+
 ## Configuration
 
 Copy `.env.example` to `.env` and configure:
@@ -145,6 +147,69 @@ training:
 - Python 3.10+
 - NVIDIA GPU with CUDA support
 - 6GB+ VRAM (QLoRA with 7B models)
+
+### PyTorch with CUDA
+
+The default `pip install` may install CPU-only PyTorch. For GPU training, install PyTorch with CUDA:
+
+```bash
+# Check if CUDA is working
+python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
+
+# If False, reinstall PyTorch with CUDA
+pip uninstall torch torchvision torchaudio -y
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+```
+
+For RTX 40/50 series GPUs, use CUDA 12.4. For older GPUs, use `cu118` or `cu121`.
+
+### HuggingFace Authentication (for Llama, Mistral, etc.)
+
+Gated models require HuggingFace authentication. If you get `401` or `403` errors:
+
+- **403 Forbidden**: Token exists but lacks permissions → Create new token with read access
+- **401 Unauthorized**: Token invalid/missing → Re-run `huggingface-cli login`
+
+**Step 1: Create a Fine-Grained Token**
+
+Go to https://huggingface.co/settings/tokens and create a new token:
+- Select "Fine-grained token"
+- Name it (e.g., "llama-access")
+- Under Permissions, select: **Read access to contents of all public gated repos you can access**
+- Click "Create token"
+- Copy the token (starts with `hf_`)
+
+**Step 2: Accept Meta's License**
+
+Visit https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct and click **"Agree and access repository"** button.
+
+**Step 3: Login with Your Token**
+
+```bash
+huggingface-cli login
+# When prompted, paste your token (it won't show as you type)
+```
+
+**Step 4: Verify Login**
+
+```bash
+huggingface-cli whoami
+# Should show your HF username
+```
+
+**Step 5: Add Token to .env**
+
+```bash
+HF_TOKEN=hf_your_token_here
+```
+
+**Verification Checklist:**
+- [ ] Visited meta-llama repo page and clicked "Agree"
+- [ ] Generated fine-grained token with gated repo read access
+- [ ] Ran `huggingface-cli login` with new token
+- [ ] Confirmed `huggingface-cli whoami` shows your username
+- [ ] Set `HF_TOKEN` in `.env` file
+- [ ] If still failing, try clearing cache: `rm -rf ~/.cache/huggingface/`
 
 ## Development
 

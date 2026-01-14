@@ -208,6 +208,105 @@ def check_cuda_available() -> bool:
         return False
 
 
+def has_nvidia_gpu() -> bool:
+    """Check if NVIDIA GPU is present using nvidia-smi."""
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["nvidia-smi"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
+def fix_pytorch_cuda() -> bool:
+    """Attempt to reinstall PyTorch with CUDA support.
+
+    Returns:
+        True if fix was attempted, False if user declined
+    """
+    import subprocess
+    import sys
+
+    from rich.console import Console
+    from rich.prompt import Confirm
+
+    console = Console()
+
+    console.print()
+    console.print("[bold yellow]PyTorch CUDA Issue Detected[/bold yellow]")
+    console.print()
+    console.print("Your system has an NVIDIA GPU but PyTorch was installed without CUDA support.")
+    console.print("This can be fixed by reinstalling PyTorch with CUDA.")
+    console.print()
+
+    if not Confirm.ask("Would you like to automatically fix this?", default=True):
+        return False
+
+    console.print()
+
+    # Detect CUDA version from nvidia-smi
+    cuda_version = "cu124"  # Default to CUDA 12.4 for newer GPUs
+
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode == 0:
+            driver_version = result.stdout.strip().split(".")[0]
+            driver_major = int(driver_version) if driver_version.isdigit() else 0
+
+            # Map driver version to CUDA version
+            if driver_major >= 550:
+                cuda_version = "cu124"  # CUDA 12.4
+            elif driver_major >= 525:
+                cuda_version = "cu121"  # CUDA 12.1
+            elif driver_major >= 450:
+                cuda_version = "cu118"  # CUDA 11.8
+    except Exception:
+        pass
+
+    console.print(f"[cyan]Detected CUDA version: {cuda_version}[/cyan]")
+    console.print()
+
+    with console.status("[bold cyan]Uninstalling CPU-only PyTorch...[/bold cyan]"):
+        subprocess.run(
+            [sys.executable, "-m", "pip", "uninstall", "torch", "torchvision", "torchaudio", "-y"],
+            capture_output=True,
+        )
+
+    console.print("[green]✓[/green] Uninstalled CPU-only PyTorch")
+
+    with console.status(f"[bold cyan]Installing PyTorch with CUDA ({cuda_version})...[/bold cyan]"):
+        result = subprocess.run(
+            [
+                sys.executable, "-m", "pip", "install",
+                "torch", "torchvision", "torchaudio",
+                "--index-url", f"https://download.pytorch.org/whl/{cuda_version}",
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+    if result.returncode == 0:
+        console.print(f"[green]✓[/green] Installed PyTorch with CUDA ({cuda_version})")
+        console.print()
+        console.print("[bold green]Please restart the application for changes to take effect.[/bold green]")
+        return True
+    else:
+        console.print("[red]✗[/red] Failed to install PyTorch with CUDA")
+        console.print(f"[dim]{result.stderr}[/dim]")
+        return False
+
+
 def create_training_progress() -> Progress:
     """Create a progress bar for training."""
     return Progress(
