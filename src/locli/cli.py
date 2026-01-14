@@ -181,7 +181,7 @@ def train_cmd() -> None:
     while True:
         base_model = Prompt.ask(
             "Base model (HuggingFace ID)",
-            default="meta-llama/Llama-3.1-8B-Instruct",
+            default="meta-llama/Llama-3.2-3B-Instruct",
         )
 
         console.print("Validating model...")
@@ -519,7 +519,7 @@ def models_info(
 
     # Get model ID interactively if not provided
     if model_id is None:
-        model_id = Prompt.ask("Model ID (e.g., meta-llama/Llama-3.1-8B-Instruct)")
+        model_id = Prompt.ask("Model ID (e.g., meta-llama/Llama-3.2-3B-Instruct)")
 
     model = get_model_info(model_id)
 

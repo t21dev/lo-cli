@@ -102,6 +102,8 @@ python app.py info            # Check GPU, VRAM, CUDA status
 
 | Model Size | Method | Min VRAM |
 |------------|--------|----------|
+| 3B | QLoRA | 4GB |
+| 3B | LoRA | 8GB |
 | 7B | QLoRA | 6GB |
 | 7B | LoRA | 14GB |
 | 13B | QLoRA | 10GB |
@@ -146,7 +148,7 @@ training:
 
 - Python 3.10+
 - NVIDIA GPU with CUDA support
-- 6GB+ VRAM (QLoRA with 7B models)
+- 4GB+ VRAM (QLoRA with 3B models) / 6GB+ for 7B models
 
 ### PyTorch with CUDA
 
@@ -181,7 +183,7 @@ Go to https://huggingface.co/settings/tokens and create a new token:
 
 **Step 2: Accept Meta's License**
 
-Visit https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct and click **"Agree and access repository"** button.
+Visit https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct and click **"Agree and access repository"** button.
 
 **Step 3: Login with Your Token**
 
