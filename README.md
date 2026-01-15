@@ -1,5 +1,7 @@
 # LoCLI
 
+![LoCLI](locli.png)
+
 ```
   ██╗      ██████╗  ██████╗██╗     ██╗
   ██║     ██╔═══██╗██╔════╝██║     ██║
@@ -42,6 +44,9 @@ pip install -r requirements.txt
 ```bash
 # For AI-powered suggestions (requires OpenAI API key)
 pip install openai
+
+# For training charts and visualizations
+pip install matplotlib
 
 # For GGUF export
 pip install llama-cpp-python
@@ -92,6 +97,8 @@ All commands are interactive and will prompt for required inputs:
 python app.py train           # Training wizard
 python app.py analyze         # Analyze dataset & get suggestions
 python app.py export          # Export model (LoRA/merged/GGUF)
+python app.py test            # Interactive chat with trained model
+python app.py stats           # View training metrics and charts
 python app.py models list     # List supported model families
 python app.py models search   # Search HuggingFace models
 python app.py models info     # Show model details & VRAM requirements
@@ -144,6 +151,35 @@ training:
   batch_size: 4
 ```
 
+## Evaluation & Testing
+
+After training completes, LoCLI automatically saves training metrics and can generate visualizations.
+
+### Interactive Testing
+
+Chat with your trained model to evaluate its responses:
+
+```bash
+python app.py test
+# → Enter path to trained model (e.g., ./output/my-model)
+# → Start chatting! Type 'exit' to quit
+```
+
+### Training Statistics
+
+View training metrics and generate charts:
+
+```bash
+python app.py stats
+# → Enter path to training output directory
+# → View loss curves, learning rate schedule, and summary
+```
+
+Charts generated (requires `pip install matplotlib`):
+- **loss_chart.png** - Training loss over steps with eval loss overlay
+- **learning_rate_chart.png** - Learning rate schedule visualization
+- **epoch_loss_chart.png** - Average loss per epoch
+
 ## Requirements
 
 - Python 3.10+
@@ -165,11 +201,43 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 
 For RTX 40 series, use CUDA 12.4 (`cu124`). For older GPUs, use `cu118` or `cu121`.
 
-**RTX 50 Series (5070, 5080, 5090):** These GPUs require PyTorch nightly build:
+**RTX 50 Series (5070, 5080, 5090):** These GPUs use the new Blackwell architecture and require PyTorch nightly build with CUDA 12.8+:
 ```bash
 pip uninstall torch torchvision torchaudio -y
-pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu124
+
+# Install torch only (torchvision/torchaudio not needed for LLM training)
+pip install --pre torch --index-url https://download.pytorch.org/whl/nightly/cu128
 ```
+
+Verify it works:
+```bash
+python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+```
+
+**If you still get "no kernel image available" errors:**
+
+The RTX 50 series (Blackwell/SM_100) is very new and CUDA kernel support is still being added to PyTorch. If nightly builds don't work:
+
+1. **Check for newer nightlies** - Support is being actively added:
+   ```bash
+   pip install --pre torch --index-url https://download.pytorch.org/whl/nightly/cu128 --upgrade
+   ```
+
+2. **Verify CUDA version** - RTX 50 series requires CUDA 12.8+:
+   ```bash
+   nvcc --version
+   nvidia-smi
+   ```
+
+3. **Check PyTorch build info**:
+   ```bash
+   python -c "import torch; print(torch.__version__); print(torch.version.cuda)"
+   ```
+
+4. **Temporary workaround** - Use CPU training (slow but works):
+   - The tool will detect missing CUDA and offer CPU fallback
+
+5. **Wait for stable release** - PyTorch stable releases with full Blackwell support are expected in 2025
 
 ### HuggingFace Authentication (for Llama, Mistral, etc.)
 

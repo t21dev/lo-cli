@@ -224,6 +224,27 @@ def has_nvidia_gpu() -> bool:
         return False
 
 
+def detect_rtx_50_series() -> bool:
+    """Check if the system has an RTX 50 series GPU (Blackwell architecture)."""
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode == 0:
+            gpu_name = result.stdout.strip().lower()
+            # RTX 50 series: 5070, 5080, 5090, etc.
+            if any(x in gpu_name for x in ["5070", "5080", "5090", "50 series", "blackwell"]):
+                return True
+    except Exception:
+        pass
+    return False
+
+
 def fix_pytorch_cuda() -> bool:
     """Attempt to reinstall PyTorch with CUDA support.
 
@@ -245,6 +266,13 @@ def fix_pytorch_cuda() -> bool:
     console.print("This can be fixed by reinstalling PyTorch with CUDA.")
     console.print()
 
+    # Check for RTX 50 series
+    is_rtx_50 = detect_rtx_50_series()
+    if is_rtx_50:
+        console.print("[bold yellow]RTX 50 series (Blackwell) GPU detected![/bold yellow]")
+        console.print("This GPU requires PyTorch nightly build with CUDA 12.8+.")
+        console.print()
+
     if not Confirm.ask("Would you like to automatically fix this?", default=True):
         return False
 
@@ -252,29 +280,37 @@ def fix_pytorch_cuda() -> bool:
 
     # Detect CUDA version from nvidia-smi
     cuda_version = "cu124"  # Default to CUDA 12.4 for newer GPUs
+    use_nightly = False
 
-    try:
-        result = subprocess.run(
-            ["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if result.returncode == 0:
-            driver_version = result.stdout.strip().split(".")[0]
-            driver_major = int(driver_version) if driver_version.isdigit() else 0
+    if is_rtx_50:
+        cuda_version = "cu128"
+        use_nightly = True
+    else:
+        try:
+            result = subprocess.run(
+                ["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode == 0:
+                driver_version = result.stdout.strip().split(".")[0]
+                driver_major = int(driver_version) if driver_version.isdigit() else 0
 
-            # Map driver version to CUDA version
-            if driver_major >= 550:
-                cuda_version = "cu124"  # CUDA 12.4
-            elif driver_major >= 525:
-                cuda_version = "cu121"  # CUDA 12.1
-            elif driver_major >= 450:
-                cuda_version = "cu118"  # CUDA 11.8
-    except Exception:
-        pass
+                # Map driver version to CUDA version
+                if driver_major >= 550:
+                    cuda_version = "cu124"  # CUDA 12.4
+                elif driver_major >= 525:
+                    cuda_version = "cu121"  # CUDA 12.1
+                elif driver_major >= 450:
+                    cuda_version = "cu118"  # CUDA 11.8
+        except Exception:
+            pass
 
-    console.print(f"[cyan]Detected CUDA version: {cuda_version}[/cyan]")
+    if use_nightly:
+        console.print(f"[cyan]Using PyTorch nightly with CUDA {cuda_version}[/cyan]")
+    else:
+        console.print(f"[cyan]Detected CUDA version: {cuda_version}[/cyan]")
     console.print()
 
     with console.status("[bold cyan]Uninstalling CPU-only PyTorch...[/bold cyan]"):
@@ -285,21 +321,38 @@ def fix_pytorch_cuda() -> bool:
 
     console.print("[green]✓[/green] Uninstalled CPU-only PyTorch")
 
-    with console.status(f"[bold cyan]Installing PyTorch with CUDA ({cuda_version})...[/bold cyan]"):
-        result = subprocess.run(
-            [
-                sys.executable, "-m", "pip", "install",
-                "torch", "torchvision", "torchaudio",
-                "--index-url", f"https://download.pytorch.org/whl/{cuda_version}",
-            ],
-            capture_output=True,
-            text=True,
-        )
+    if use_nightly:
+        # Install nightly build for RTX 50 series
+        with console.status(f"[bold cyan]Installing PyTorch nightly with CUDA ({cuda_version})...[/bold cyan]"):
+            result = subprocess.run(
+                [
+                    sys.executable, "-m", "pip", "install",
+                    "--pre", "torch",
+                    "--index-url", f"https://download.pytorch.org/whl/nightly/{cuda_version}",
+                ],
+                capture_output=True,
+                text=True,
+            )
+    else:
+        with console.status(f"[bold cyan]Installing PyTorch with CUDA ({cuda_version})...[/bold cyan]"):
+            result = subprocess.run(
+                [
+                    sys.executable, "-m", "pip", "install",
+                    "torch", "torchvision", "torchaudio",
+                    "--index-url", f"https://download.pytorch.org/whl/{cuda_version}",
+                ],
+                capture_output=True,
+                text=True,
+            )
 
     if result.returncode == 0:
         console.print(f"[green]✓[/green] Installed PyTorch with CUDA ({cuda_version})")
         console.print()
         console.print("[bold green]Please restart the application for changes to take effect.[/bold green]")
+        if use_nightly:
+            console.print()
+            console.print("[yellow]Note: RTX 50 series support is still being added to PyTorch.[/yellow]")
+            console.print("[yellow]If you still encounter errors, check for newer nightly builds.[/yellow]")
         return True
     else:
         console.print("[red]✗[/red] Failed to install PyTorch with CUDA")

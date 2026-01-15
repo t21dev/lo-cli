@@ -19,6 +19,12 @@ from locli.analyzer import (
     validate_jsonl,
 )
 from locli.config import load_config
+from locli.eval import (
+    display_training_summary,
+    generate_training_charts,
+    interactive_test,
+    load_training_metrics,
+)
 from locli.exporter import (
     GGUF_QUANTIZATIONS,
     display_export_result,
@@ -460,6 +466,96 @@ def export_interactive(model_path: Path) -> None:
     except Exception as e:
         print_error(f"Export failed: {e}")
         raise typer.Exit(1)
+
+
+@app.command()
+def test(
+    model_path: Annotated[
+        Path,
+        typer.Argument(help="Path to trained model directory"),
+    ] = None,
+    base_model: Annotated[
+        str,
+        typer.Option("--base-model", "-b", help="Base model ID (if not auto-detected)"),
+    ] = None,
+) -> None:
+    """Interactively test a trained model."""
+    show_logo()
+    console.print(Panel.fit("[bold]Model Testing[/bold]", border_style="green"))
+    console.print()
+
+    # Get model path interactively if not provided
+    if model_path is None:
+        model_str = Prompt.ask("Trained model path (e.g., ./output/final)")
+        model_path = Path(model_str)
+
+    if not model_path.exists():
+        print_error(f"Model path not found: {model_path}")
+        raise typer.Exit(1)
+
+    try:
+        interactive_test(model_path, base_model)
+    except Exception as e:
+        print_error(f"Testing failed: {e}")
+        raise typer.Exit(1)
+
+
+@app.command()
+def stats(
+    output_dir: Annotated[
+        Path,
+        typer.Argument(help="Path to training output directory"),
+    ] = None,
+    regenerate_charts: Annotated[
+        bool,
+        typer.Option("--regenerate", "-r", help="Regenerate training charts"),
+    ] = False,
+) -> None:
+    """View training statistics and charts."""
+    show_logo()
+    console.print(Panel.fit("[bold]Training Statistics[/bold]", border_style="blue"))
+    console.print()
+
+    # Get output directory interactively if not provided
+    if output_dir is None:
+        output_str = Prompt.ask("Training output directory (e.g., ./output)")
+        output_dir = Path(output_str)
+
+    if not output_dir.exists():
+        print_error(f"Output directory not found: {output_dir}")
+        raise typer.Exit(1)
+
+    # Load metrics
+    metrics = load_training_metrics(output_dir)
+    if metrics is None:
+        print_error("No training metrics found. Was training completed?")
+        raise typer.Exit(1)
+
+    # Display summary
+    display_training_summary(metrics)
+
+    # Regenerate charts if requested
+    if regenerate_charts:
+        console.print()
+        print_info("Regenerating charts...")
+        charts = generate_training_charts(metrics, output_dir)
+        if charts:
+            print_success(f"Charts saved: {', '.join(p.name for p in charts)}")
+        else:
+            print_warning("Could not generate charts. Is matplotlib installed?")
+    else:
+        # Check if charts exist
+        chart_files = list(output_dir.glob("*_chart.png"))
+        if chart_files:
+            console.print()
+            print_info(f"Charts available: {', '.join(p.name for p in chart_files)}")
+            print_info(f"Location: {output_dir}")
+        else:
+            console.print()
+            if Confirm.ask("Generate training charts?", default=True):
+                charts = generate_training_charts(metrics, output_dir)
+                if charts:
+                    print_success(f"Charts saved: {', '.join(p.name for p in charts)}")
 
 
 # Models subcommands

@@ -21,5 +21,8 @@ numpy>=1.24
 # Optional: AI suggestions (uncomment to enable)
 # openai>=1.0
 
+# Optional: Training charts (uncomment to enable)
+# matplotlib>=3.7
+
 # Optional: GGUF export (uncomment to enable)
 # llama-cpp-python>=0.2

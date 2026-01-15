@@ -18,6 +18,7 @@ from transformers import (
     AutoTokenizer,
     BitsAndBytesConfig,
     EarlyStoppingCallback,
+    TrainerCallback,
     TrainingArguments,
 )
 from trl import SFTTrainer
@@ -30,6 +31,7 @@ from locli.config import (
     TrainingConfig,
     load_config,
 )
+from locli.eval import TrainingMetrics, generate_training_charts, save_training_metrics
 from locli.utils import get_hf_token, print_error, print_info, print_success, set_seed
 
 if TYPE_CHECKING:
@@ -270,8 +272,8 @@ def create_training_arguments(
     )
 
 
-class TrainingProgressCallback:
-    """Callback for displaying training progress."""
+class TrainingProgressCallback(TrainerCallback):
+    """Callback for displaying training progress and collecting metrics."""
 
     def __init__(self):
         self.progress = None
@@ -279,6 +281,14 @@ class TrainingProgressCallback:
         self.current_step = 0
         self.total_steps = 0
         self.current_loss = None
+
+        # Metrics collection
+        self.steps: list[int] = []
+        self.losses: list[float] = []
+        self.learning_rates: list[float] = []
+        self.epochs: list[float] = []
+        self.eval_losses: list[float] = []
+        self.eval_steps: list[int] = []
 
     def on_train_begin(self, args, state, control, **kwargs):
         """Called at the beginning of training."""
@@ -295,6 +305,12 @@ class TrainingProgressCallback:
                 step = state.global_step
                 epoch = state.epoch or 0
 
+                # Collect metrics
+                self.steps.append(step)
+                self.losses.append(loss)
+                self.learning_rates.append(lr)
+                self.epochs.append(epoch)
+
                 console.print(
                     f"Step {step}/{self.total_steps} | "
                     f"Epoch {epoch:.2f} | "
@@ -302,9 +318,26 @@ class TrainingProgressCallback:
                     f"LR: {lr:.2e}"
                 )
 
+            # Collect eval loss if available
+            eval_loss = logs.get("eval_loss")
+            if eval_loss is not None:
+                self.eval_losses.append(eval_loss)
+                self.eval_steps.append(state.global_step)
+
     def on_train_end(self, args, state, control, **kwargs):
         """Called at the end of training."""
         console.print(f"\n[bold green]Training complete! Final loss: {self.current_loss:.4f}[/bold green]")
+
+    def get_metrics(self) -> TrainingMetrics:
+        """Get collected training metrics."""
+        return TrainingMetrics(
+            steps=self.steps,
+            losses=self.losses,
+            learning_rates=self.learning_rates,
+            epochs=self.epochs,
+            eval_losses=self.eval_losses if self.eval_losses else None,
+            eval_steps=self.eval_steps if self.eval_steps else None,
+        )
 
 
 def train(
@@ -394,6 +427,9 @@ def train(
 
     # Create callbacks
     callbacks = []
+    progress_callback = TrainingProgressCallback()
+    callbacks.append(progress_callback)
+
     if config.early_stopping.enabled:
         callbacks.append(
             EarlyStoppingCallback(
@@ -454,6 +490,16 @@ def train(
     training_time = end_time - start_time
 
     print_success(f"Model saved to: {final_output}")
+
+    # Save training metrics and generate charts
+    if progress_callback.steps:
+        metrics = progress_callback.get_metrics()
+        metrics_path = save_training_metrics(metrics, output_dir)
+        print_info(f"Training metrics saved to: {metrics_path}")
+
+        charts = generate_training_charts(metrics, output_dir)
+        if charts:
+            print_info(f"Training charts saved: {', '.join(p.name for p in charts)}")
 
     # Find best checkpoint
     best_checkpoint = None
