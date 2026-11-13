@@ -313,6 +313,10 @@ python app.py train
 # → Enter training_data.jsonl when prompted
 ```
 
+## Support
+
+This project is free and open source. If it saves you time, you can support [Team 21](https://t21.dev) on [Patreon](https://www.patreon.com/triptex). It pays for code signing, app store fees and servers.
+
 ## License
 
 MIT License - see [LICENSE](LICENSE)
